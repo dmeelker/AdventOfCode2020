@@ -17,15 +17,20 @@ namespace Solution
 
         public static long Solve(long[] input, long target)
         {
-            return GenerateNumbers(input).SkipWhile(pair => pair.Item2 < target)
-                .First().Item1;
+            return GenerateNumbers(input)
+                .Select((value, index) => (value: value, index: index + 1))
+                .SkipWhile(pair => pair.index < target)
+                .First().value;
         }
 
-        public static IEnumerable<(long, int)> GenerateNumbers(long[] input)
+        public static IEnumerable<long> GenerateNumbers(long[] input)
         {
             var numbers = input.Select((number, index) => (number, index)).ToDictionary(value => value.number, value => new NumberKnowledge(value.number, value.index));
             var lastNumber = input.Last();
             var numberCount = input.Length;
+
+            foreach (var number in input)
+                yield return number;
 
             while(true)
             {
@@ -36,7 +41,7 @@ namespace Solution
                 lastNumber = number;
                 numberCount++;
 
-                yield return (number, numberCount);
+                yield return number;
             }
 
             void AddOrUpdateNumber(long number)
