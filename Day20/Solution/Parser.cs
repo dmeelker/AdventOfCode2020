@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Solution
@@ -16,13 +17,7 @@ namespace Solution
             {
                 var lines = section.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToArray();
                 var header = ParseHeader(lines[0]);
-                var image = lines.Skip(1).Select(line => line.ToCharArray()
-                        .Select(chr => chr switch
-                        {
-                            '#' => true,
-                            _ => false
-                        }).ToArray()
-                    ).ToArray();
+                var image = ParseGrid(lines.Skip(1));
 
                 tiles.Add(new Tile(header, new Grid(image)));
             }
@@ -34,6 +29,17 @@ namespace Solution
         {
             var match = Regex.Match(line, "Tile (\\d+)");
             return int.Parse(match.Groups[1].Value);
+        }
+
+        public static bool[][] ParseGrid(IEnumerable<string> lines)
+        {
+            return lines.Select(line => line.ToCharArray()
+                        .Select(chr => chr switch
+                        {
+                            '#' => true,
+                            _ => false
+                        }).ToArray()
+                    ).ToArray();
         }
     }
 
@@ -48,10 +54,79 @@ namespace Solution
         {
             Id = id;
             Base = image;
-            Permutations = RemoveDuplicates(GeneratePermutations(image)).ToList();
+            Permutations = image.GeneratePermutations().ToList();
         }
 
-        private IEnumerable<Grid> RemoveDuplicates(IEnumerable<Grid> grids)
+        public IEnumerable<string> UniqueSides => Permutations.SelectMany(p => p.GetNormalizedSides()).Distinct();
+
+        public bool IsCorner(Dictionary<string, int> sideCounts)
+        {
+            return UniqueSides.Count(side => sideCounts[side] == 1) == 2*2;
+        }
+
+        public Grid GetTopLeftCornerPermutation(Dictionary<string, int> sideCounts)
+        {
+            return Permutations.First(p => sideCounts[p.Sides[0]] == 1 && sideCounts[p.Sides[3]] == 1);
+        }
+    }
+
+    public class Grid
+    {
+        public bool[,] Image { get; set; }
+        public string[] Sides { get; }
+
+        public Grid(bool[][] image)
+        {
+            Image = new bool[image.GetLength(0), image.GetLength(0)];
+            for (int x = 0; x < image.GetLength(0); x++)
+            {
+                for (int y = 0; y < image.GetLength(0); y++)
+                {
+                    Image[y, x] = image[y][x];
+                }
+            }
+
+            Sides = GetSides();
+        }
+
+        public Grid(bool[,] image)
+        {
+            Image = image;
+            //Image = new bool[image.GetLength(0)][];
+            //for (int i = 0; i < image.GetLength(0); i++)
+            //    Image[i] = new bool[image.GetLength(0)];
+
+            //for(int x=0; x< image.GetLength(0); x++)
+            //{
+            //    for (int y = 0; y < image.GetLength(0); y++)
+            //    {
+            //        Image[x][y] = image[x, y];
+            //    }
+            //}
+
+            Sides = GetSides();
+        }
+
+        public IEnumerable<Grid> GeneratePermutations()
+        {
+            return RemoveDuplicates(GetPermutations());
+        }
+
+        public IEnumerable<Grid> GetPermutations()
+        {
+            var grid = this;
+
+            for (var i = 0; i < 3; i++)
+            {
+                yield return grid;
+                yield return grid.FlipHorizontal();
+                yield return grid.FlipVertical();
+
+                grid = grid.RotateRight();
+            }
+        }
+
+        public IEnumerable<Grid> RemoveDuplicates(IEnumerable<Grid> grids)
         {
             var x = grids.Select(g => g.ToString()).ToArray();
 
@@ -60,60 +135,15 @@ namespace Solution
                 .Select(g => g.First());
         }
 
-        public IEnumerable<Grid> GeneratePermutations(Grid image)
-        {
-            //yield return image;
-            var b = image;
-
-            for (var i = 0; i < 3; i++)
-            {
-                yield return b;
-                yield return b.FlipHorizontal();
-                yield return b.FlipVertical();
-
-                b = b.RotateRight();
-            }
-        }
-
-        public HashSet<string> GetAllSidePermutations()
-        {
-            return new HashSet<string>(Permutations.SelectMany(p => p.Sides));
-        }
-
-        public bool ContainsSide(string side)
-        {
-            return Permutations.Any(permutation => permutation.Sides.Any(s => s == side));
-        }
-
-        public IEnumerable<Grid> FindConnectablePermutations(string side, int sideIndex)
-        {
-            return Permutations.Where(p => p.Sides[sideIndex] == side);
-        }
-    }
-
-    public class Grid
-    {
-        public bool[][] Image { get; set; }
-        public string[] Sides { get; }
-
-        public Grid(bool[][] image)
-        {
-            Image = image;
-            Sides = GetSides();
-        }
-
         public Grid RotateRight()
         {
-            var size = Image.Length;
-            var result = new bool[size][];
-            for (var y = 0; y < size; y++)
-                result[y] = new bool[size];
+            var result = new bool[Size, Size];
 
-            for (int i = 0; i < size; ++i)
+            for (int i = 0; i < Size; ++i)
             {
-                for (int j = 0; j < size; ++j)
+                for (int j = 0; j < Size; ++j)
                 {
-                    result[i][j] = Image[size - j - 1][i];
+                    result[i,j] = Image[Size - j - 1,i];
                 }
             }
 
@@ -122,16 +152,13 @@ namespace Solution
 
         public Grid FlipHorizontal()
         {
-            var size = Image.Length;
-            var result = new bool[size][];
-            for (var y = 0; y < size; y++)
-                result[y] = new bool[size];
+            var result = new bool[Size, Size];
 
-            for (int y = 0; y < size; ++y)
+            for (int y = 0; y < Size; ++y)
             {
-                for (int x = 0; x < size; ++x)
+                for (int x = 0; x < Size; ++x)
                 {
-                    result[y][size - 1 - x] = Image[y][x];
+                    result[y, Size - 1 - x] = Image[y, x];
                 }
             }
 
@@ -140,41 +167,26 @@ namespace Solution
 
         public Grid FlipVertical()
         {
-            var size = Image.Length;
-            var result = new bool[size][];
-            for (var y = 0; y < size; y++)
-                result[y] = new bool[size];
+            var result = new bool[Size, Size];
 
-            for (int y = 0; y < size; ++y)
+            for (int y = 0; y < Size; ++y)
             {
-                for (int x = 0; x < size; ++x)
+                for (int x = 0; x < Size; ++x)
                 {
-                    result[size - 1 - y][x] = Image[y][x];
+                    result[Size - 1 - y, x] = Image[y, x];
                 }
             }
 
             return new Grid(result);
         }
 
-        public void RotateUntilSideIsInPosition(int sideIndex, int desiredIndex)
-        {
-            while (sideIndex != desiredIndex)
-            {
-                RotateRight();
-                sideIndex++;
-
-                if (sideIndex > 3)
-                    sideIndex -= 4;
-            }
-        }
-
         public string GetSide(int index)
         {
             return ToString(index switch
             {
-                0 => ReadRow(0), //ReadRow(0),
-                1 => ReadColumn(Image.Length - 1), //ReadColumn(Image.Length - 1),
-                2 => ReadRow(Image.Length - 1),
+                0 => ReadRow(0),
+                1 => ReadColumn(Width - 1),
+                2 => ReadRow(Height - 1),
                 3 => ReadColumn(0),
                 _ => throw new Exception()
             });
@@ -187,16 +199,38 @@ namespace Solution
                 .ToArray();
         }
 
+        public string GetNormalizedSide(int index)
+        {
+            return ToString(index switch
+            {
+                0 => ReadRow(0),
+                1 => ReadColumn(Width - 1),
+                2 => ReadRow(Height - 1).Reverse(),
+                3 => ReadColumn(0).Reverse(),
+                _ => throw new Exception()
+            });
+        }
+
+        public string[] GetNormalizedSides()
+        {
+            return Enumerable.Range(0, 4)
+                .Select(side => GetNormalizedSide(side))
+                .ToArray();
+        }
+
         public IEnumerable<bool> ReadRow(int row)
         {
-            return Image[row];
+            for (var x = 0; x < Width; x++)
+            {
+                yield return Image[row, x];
+            }
         }
 
         public IEnumerable<bool> ReadColumn(int column)
         {
-            for (var i = 0; i < Image.Length; i++)
+            for (var i = 0; i < Height; i++)
             {
-                yield return Image[i][column];
+                yield return Image[i,column];
             }
         }
 
@@ -208,17 +242,47 @@ namespace Solution
 
         public override string ToString()
         {
-            return Image.Select(line => ToString(line)).Aggregate((l1, l2) => l1 + Environment.NewLine + l2);
+            var str = new StringBuilder();
+
+            for (var y = 0; y < Size; y++)
+            {
+                for (var x = 0; x < Size; x++)
+                {
+                    str.Append(Get(x, y) ? '#' : '.');
+                }
+                str.AppendLine();
+            }
+
+            return str.ToString();
         }
 
-        public bool Equals(Grid other)
+        public bool Contains(int x, int y)
         {
-            return ToString() == other.ToString();
+            return x >= 0 && x < Width &&
+                y >= 0 && y < Height;
         }
-    }
 
-    public class TilePermutation
-    {
+        public bool Get(int x, int y)
+        {
+            return Image[y, x];
+        }
 
+        public IEnumerable<bool> AllValues
+        {
+            get 
+            {
+                for (var x = 0; x < Size; x++)
+                {
+                    for (var y = 0; y < Size; y++)
+                    {
+                        yield return Get(x, y);
+                    }
+                }
+            }
+        }
+
+        public int Width => Image.GetLength(1);
+        public int Height => Image.GetLength(0);
+        public int Size => Width;
     }
 }

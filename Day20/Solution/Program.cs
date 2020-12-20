@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 
 namespace Solution
 {
@@ -21,338 +18,172 @@ namespace Solution
 
         public static long Part1(Tile[] input)
         {
-            var totalPermutations = input.Sum(tile => tile.Permutations.Count());
-            var tree = GenerateSearchTree(input);
-            var solutions = FindSolutions(tree).Where(p => p[0].IsSquare()).ToArray();
-
-            var sol = solutions[0][0];
-            return sol.GetScore();
-
-            //var str = solutions.Select(s => s[0].ToDebugString()).ToArray();
-
-            //foreach(var s in str)
-            //{
-            //    Console.WriteLine(s);
-            //}
-
-            //return 0;
+            var field = Puzzle(input);
+            var gridSize = field.GetLength(0);
+            return (long)field[0, 0].TileId * field[gridSize - 1, 0].TileId * field[gridSize - 1, gridSize - 1].TileId * field[0, gridSize - 1].TileId;
         }
 
-        public static List<TreeNode[]> FindSolutions(TreeNode root)
+        private static TilePermutation[,] Puzzle(Tile[] input)
         {
-            var path = new Stack<TreeNode>();
-            var paths = new List<TreeNode[]>();
+            var gridSize = (int)Math.Sqrt(input.Length);
 
-            FindSolutions(root, path, paths);
-            return paths;
-        }
+            var sideCount = input.SelectMany(t => t.UniqueSides).GroupBy(side => side)
+                .Select(group => (side: group.Key, count: group.Count()))
+                .OrderByDescending(group => group.count)
+                .ToDictionary(group => group.side, group => group.count);
 
-        public static void FindSolutions(TreeNode node, Stack<TreeNode> path, List<TreeNode[]> paths)
-        {
-            path.Push(node);
+            var firstCorner = input.First(t => t.IsCorner(sideCount));
+            var topLeftCorner = firstCorner.GetTopLeftCornerPermutation(sideCount);
 
-            if (node.Children.Count == 0)
-                paths.Add(path.ToArray());
+            var remainingTiles = input.Except(new[] { firstCorner }).ToList();
+            var field = new TilePermutation[gridSize, gridSize];
 
-            foreach (var child in node.Children)
+            field[0, 0] = new TilePermutation(firstCorner.Id, topLeftCorner);
+
+            for(int y=0; y<gridSize; y++)
             {
-                FindSolutions(child, path, paths);
-            }
-
-            path.Pop();
-        }
-
-        public static TreeNode GenerateSearchTree(Tile[] input)
-        {
-            var remainingTiles = input.Skip(1).ToList();
-            TreeNode root = new TreeNode();
-            root.PlacedTiles.Add(new PlacedTile(0, 0, input[0].Id, input[0].Permutations[0]));
-
-            GenerateSearchTree(root, remainingTiles, 1);
-            return root;
-        }
-
-        public static void GenerateSearchTree(TreeNode node, List<Tile> remainingTiles, int depth)
-        {
-            if (depth == 144)
-            {
-                Console.WriteLine(node.ToDebugString());
-
-                if (node.IsSquare())
+                for (int x = 0; x < gridSize; x++)
                 {
-                    Console.WriteLine(node.GetScore());
-                    Environment.Exit(0);
-                }
-            }
+                    if (x == 0 && y == 0)
+                        continue;
 
-            foreach (var availableSide in node.GetAvailableSides())
-            {
-                foreach (var remainingTile in remainingTiles.ToArray())
-                {
-                    var sidePermutations = remainingTile.Permutations.Where(p => node.CanPlace(availableSide.freeLocation, p)).ToArray();
-                    foreach (var permutation in sidePermutations)
+                    TilePermutation previousTile;
+                    string side;
+                    int sideIndex;
+
+                    if (x == 0)
                     {
-                        var newNode = new TreeNode { 
-                            PlacedTiles = node.PlacedTiles.ToList()
-                        };
-
-                        newNode.PlacedTiles.Add(new PlacedTile(availableSide.freeLocation.x, availableSide.freeLocation.y, remainingTile.Id, permutation));
-                        remainingTiles.Remove(remainingTile);
-                        GenerateSearchTree(newNode, remainingTiles, depth+1);
-                        remainingTiles.Add(remainingTile);
-
-                        node.Children.Add(newNode);
+                        previousTile = field[x, y - 1];
+                        side = previousTile.Grid.Sides[2];
+                        sideIndex = 0;
                     }
+                    else
+                    {
+                        previousTile = field[x - 1, y];
+                        side = previousTile.Grid.Sides[1];
+                        sideIndex = 3;
+                    }
+
+                    var match = remainingTiles.Select(tile => (tile, grid: tile.Permutations.SingleOrDefault(p => p.Sides[sideIndex] == side)))
+                        .Where(match => match.grid != null)
+                        .First();
+
+                    field[x, y] = new TilePermutation(match.tile.Id, match.grid);
+                    remainingTiles.Remove(match.tile);
                 }
             }
+
+            return field;
         }
-
-        public static int GetOppositeSideIndex(int index)
-        {
-            var result = index + 2;
-
-            if (result > 3)
-                result -= 4;
-            return result;
-        }
-
-        //public static (int x, int y) GetAdjacentCellCoordinates((int x, int y) location, int sideIndex)
-        //{
-        //    return sideIndex switch { 
-        //        0 => (location.x, location.y -1),
-        //        1 => (location.x +1, location.y),
-        //        2 => (location.x, location.y+1),
-        //        3 => (location.x - 1, location.y),
-        //        _ => throw new Exception()
-        //    };
-        //}
-
-        //public static (PlacedTile tile, int sideIndex)? FindPlacedTileWithSide(string side, List<PlacedTile> placedTiles)
-        //{
-        //    var tile = placedTiles.FirstOrDefault(tile => tile.Tile.GetSides().Contains(side));
-
-        //    //var tile = sideMapping[side].Where(s => s != except).FirstOrDefault();
-
-        //    if (tile == null)
-        //        return null;
-
-
-        //    var sideIndex = tile.Tile.GetSides().Select((value, index) => (value, index))
-        //        .Where(s => s.value == side)
-        //        .Single()
-        //        .index;
-
-        //    return (tile, sideIndex);
-        //}
-
-
-
-
 
         public static int Part2(Tile[] input)
         {
-            return 0;
-        }
-    }
+            var field = Puzzle(input);
 
-    public class PlacedTile
-    {
-        public int X { get; set; }
-        public int Y { get; set; }
-        public int TileId { get; set; }
-        public Grid Image { get; set; }
+            var grid = FieldToGrid(field)
+                .GeneratePermutations()
+                .Select(p => (grid: p, count: CountMonsters(p)))
+                .OrderByDescending(p => p.count)
+                .First();
 
-        public PlacedTile(int x, int y, int tileId, Grid image)
-        {
-            X = x;
-            Y = y;
-            TileId = tileId;
-            Image = image;
+            var monsterCellCount = grid.count * GetMonsterOffsets().Count();
+            var waveCount = grid.grid.AllValues.Count(value => value == true);
+
+            return waveCount - monsterCellCount;
         }
 
-        public override int GetHashCode()
+        public static int CountMonsters(Grid grid)
         {
-            return X * Y * Image.GetHashCode();
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (!(obj is PlacedTile))
-                return false;
-
-            var tile = (PlacedTile)obj;
-            return X == tile.X && Y == tile.Y && TileId == tile.TileId && Image == tile.Image;
-        }
-    }
-
-    public class TreeNode
-    {
-        public List<TreeNode> Children { get; } = new List<TreeNode>();
-
-        public List<PlacedTile> PlacedTiles { get; set; } = new List<PlacedTile>();
-
-        public IEnumerable<(PlacedTile tile, int sideIndex, string side, (int x, int y) freeLocation)> GetAvailableSides()
-        {
-            foreach(var tile in PlacedTiles)
+            var count = 0;
+            for(var x=0; x<grid.Size-19; x++)
             {
-                if (SideAvailable(tile, 0)) yield return (tile, 0, tile.Image.Sides[0], (tile.X, tile.Y-1));
-                if (SideAvailable(tile, 1)) yield return (tile, 1, tile.Image.Sides[1], (tile.X+1, tile.Y));
-                if (SideAvailable(tile, 2)) yield return (tile, 2, tile.Image.Sides[2], (tile.X, tile.Y+1));
-                if (SideAvailable(tile, 3)) yield return (tile, 3, tile.Image.Sides[3], (tile.X-1, tile.Y));
+                for (var y = 0; y < grid.Size-2; y++)
+                {
+                    if (IsMonster(grid, x, y))
+                    {
+                        count++;
+                    }
+                }
             }
+
+            return count;
         }
 
-        public bool SideAvailable(PlacedTile tile, int side)
+        public static bool IsMonster(Grid grid, int x, int y)
         {
-            var location = GetAdjacentCellCoordinates((tile.X, tile.Y), side);
-            return GetTileAtLocation(location) == null;
+            return GetMonsterPoints(x, y).All(location => grid.Contains(location.x, location.y) && grid.Get(location.x, location.y));
         }
 
-        public PlacedTile GetTileAtLocation((int x, int y) location)
+        public static IEnumerable<(int x, int y)> GetMonsterPoints(int x, int y)
         {
-            return PlacedTiles.FirstOrDefault(t => t.X == location.x && t.Y == location.y);
+            return GetMonsterOffsets().Select(p => (p.x + x, p.y + y));
         }
 
-        public static (int x, int y) GetAdjacentCellCoordinates((int x, int y) location, int sideIndex)
+        public static IEnumerable<(int x, int y)> GetMonsterOffsets()
         {
-            return sideIndex switch
-            {
-                0 => (location.x, location.y - 1),
-                1 => (location.x + 1, location.y),
-                2 => (location.x, location.y + 1),
-                3 => (location.x - 1, location.y),
-                _ => throw new Exception()
+            return new[] {
+                (0, 1),
+                (1, 2),
+                  
+                (4, 2),
+                (5, 1),
+                (6, 1),
+                (7, 2),
+
+                (10, 2),
+                (11, 1),
+                (12, 1),
+                (13, 2),
+                   
+                (16, 2),
+                (17, 1),
+                (18, 1),
+                (19, 1),
+                   
+                (18, 0),
             };
         }
 
-        public bool CanPlace((int x, int y) location, Grid grid)
+        public static Grid FieldToGrid(TilePermutation[,] field)
         {
-            return
-                Check(location.x, location.y - 1, 0) &&
-                Check(location.x, location.y + 1, 2) &&
-                Check(location.x - 1, location.y, 3) &&
-                Check(location.x + 1, location.y, 1);
+            var fieldSize = field.GetLength(0);
+            var gridSize = field[0, 0].Grid.Size;
+            var result = new bool[fieldSize * (gridSize - 2), fieldSize * (gridSize - 2)];
+            int writeX = 0, writeY = 0;
 
-            bool Check(int x, int y, int sideIndex)
+            for(var fieldY=0;fieldY< fieldSize; fieldY++)
             {
-                var tile = GetTileAtLocation((x, y));
-                if (tile == null)
-                    return true;
-
-                return tile.Image.Sides[Program.GetOppositeSideIndex(sideIndex)] == grid.Sides[sideIndex];
-            }
-        }
-
-        public bool IsSquare()
-        {
-            if (Width != Height)
-                return false;
-
-            var minX = PlacedTiles.Min(t => t.X);
-            var maxX = PlacedTiles.Max(t => t.X);
-            var minY = PlacedTiles.Min(t => t.Y);
-            var maxY = PlacedTiles.Max(t => t.Y);
-
-            var summaryString = new StringBuilder();
-            for (var y = minY; y <= maxY; y++)
-            {
-                for (var x = minX; x <= maxX; x++)
+                for (var y = 1; y < gridSize - 1; y++)
                 {
-                    var grid = GetTileAtLocation((x, y));
-
-                    if (grid == null)
+                    for (var fieldX = 0; fieldX < fieldSize; fieldX++)
                     {
-                        return false;
-                    }
-                }
-            }
+                        var grid = field[fieldX, fieldY];
 
-            return true;
-        }
-
-        public int Width
-        {
-            get
-            {
-                return 1 + PlacedTiles.Select(t => t.X).Max() - PlacedTiles.Select(t => t.X).Min();
-            }
-        }
-
-        public int Height
-        {
-            get
-            {
-                return 1 + PlacedTiles.Select(t => t.Y).Max() - PlacedTiles.Select(t => t.Y).Min();
-            }
-        }
-
-        public long GetScore()
-        {
-            var minX = PlacedTiles.Min(t => t.X);
-            var maxX = PlacedTiles.Max(t => t.X);
-            var minY = PlacedTiles.Min(t => t.Y);
-            var maxY = PlacedTiles.Max(t => t.Y);
-
-            return (long)GetTileAtLocation((minX, minY)).TileId *
-                GetTileAtLocation((maxX, minY)).TileId *
-                GetTileAtLocation((maxX, maxY)).TileId *
-                GetTileAtLocation((minX, maxY)).TileId;
-        }
-
-        public string ToDebugString()
-        {
-            var gridSize = PlacedTiles[0].Image.Image.Length;
-            var str = new StringBuilder();
-            var minX = PlacedTiles.Min(t => t.X);
-            var maxX = PlacedTiles.Max(t => t.X);
-            var minY = PlacedTiles.Min(t => t.Y);
-            var maxY = PlacedTiles.Max(t => t.Y);
-
-            var summaryString = new StringBuilder();
-            for (var y = minY; y <= maxY; y++)
-            {
-                for (var x = minX; x <= maxX; x++)
-                {
-                    var grid = GetTileAtLocation((x, y));
-
-                    if (grid != null)
-                    {
-                        summaryString.AppendLine($"{x}, {y}: {grid.TileId}");
-                    }
-                }
-            }
-
-            for (var y = minY; y <= maxY; y++)
-            {
-                for (var line = 0; line < gridSize; line++)
-                {
-
-                    for (var x = minX; x <= maxX; x++)
-                    {
-                        var grid = GetTileAtLocation((x, y));
-
-                        if (grid == null)
+                        for (var x = 1; x < gridSize - 1; x++)
                         {
-                            str.Append(new string(' ', gridSize));
+                            result[writeX, writeY] = grid.Grid.Get(x,y);
+                            writeX++;
                         }
-                        else
-                        {
-                            for(int c=0; c<gridSize; c++)
-                            {
-                                str.Append(grid.Image.Image[line][c] ? '#' : '.');
-                            }
-                        }
-
-                        str.Append(' ');
                     }
-                    str.AppendLine();
-                }
 
-                str.AppendLine();
+                    writeY++;
+                    writeX = 0;
+                }
             }
 
+            return new Grid(result);
+        }
+    }
 
-            return summaryString + Environment.NewLine + Environment.NewLine + str.ToString();
+    public class TilePermutation
+    {
+        public int TileId { get; }
+        public Grid Grid { get; }
+
+        public TilePermutation(int tileId, Grid grid)
+        {
+            TileId = tileId;
+            Grid = grid;
         }
     }
 }
