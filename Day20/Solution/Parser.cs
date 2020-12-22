@@ -61,7 +61,7 @@ namespace Solution
 
         public bool IsCorner(Dictionary<string, int> sideCounts)
         {
-            return UniqueSides.Count(side => sideCounts[side] == 1) == 2*2;
+            return Base.Sides.Count(side => sideCounts[side] == 1) == 2;
         }
 
         public Grid GetTopLeftCornerPermutation(Dictionary<string, int> sideCounts)
@@ -77,10 +77,13 @@ namespace Solution
 
         public Grid(bool[][] image)
         {
-            Image = new bool[image.GetLength(0), image.GetLength(0)];
-            for (int x = 0; x < image.GetLength(0); x++)
+            var height = image.Length;
+            var width = image[0].Length;
+
+            Image = new bool[height, width];
+            for (int x = 0; x < width; x++)
             {
-                for (int y = 0; y < image.GetLength(0); y++)
+                for (int y = 0; y < height; y++)
                 {
                     Image[y, x] = image[y][x];
                 }
@@ -92,18 +95,6 @@ namespace Solution
         public Grid(bool[,] image)
         {
             Image = image;
-            //Image = new bool[image.GetLength(0)][];
-            //for (int i = 0; i < image.GetLength(0); i++)
-            //    Image[i] = new bool[image.GetLength(0)];
-
-            //for(int x=0; x< image.GetLength(0); x++)
-            //{
-            //    for (int y = 0; y < image.GetLength(0); y++)
-            //    {
-            //        Image[x][y] = image[x, y];
-            //    }
-            //}
-
             Sides = GetSides();
         }
 
@@ -139,13 +130,8 @@ namespace Solution
         {
             var result = new bool[Size, Size];
 
-            for (int i = 0; i < Size; ++i)
-            {
-                for (int j = 0; j < Size; ++j)
-                {
-                    result[i,j] = Image[Size - j - 1,i];
-                }
-            }
+            foreach (var cell in AllCells)
+                result[cell.y, cell.x] = Get(cell.y, Size - cell.x - 1);
 
             return new Grid(result);
         }
@@ -154,13 +140,8 @@ namespace Solution
         {
             var result = new bool[Size, Size];
 
-            for (int y = 0; y < Size; ++y)
-            {
-                for (int x = 0; x < Size; ++x)
-                {
-                    result[y, Size - 1 - x] = Image[y, x];
-                }
-            }
+            foreach (var cell in AllCells)
+                result[cell.y, Size - 1 - cell.x] = Get(cell.x, cell.y);
 
             return new Grid(result);
         }
@@ -169,13 +150,8 @@ namespace Solution
         {
             var result = new bool[Size, Size];
 
-            for (int y = 0; y < Size; ++y)
-            {
-                for (int x = 0; x < Size; ++x)
-                {
-                    result[Size - 1 - y, x] = Image[y, x];
-                }
-            }
+            foreach(var cell in AllCells)
+                result[Size - 1 - cell.y, cell.x] = Get(cell.x, cell.y);
 
             return new Grid(result);
         }
@@ -220,18 +196,14 @@ namespace Solution
 
         public IEnumerable<bool> ReadRow(int row)
         {
-            for (var x = 0; x < Width; x++)
-            {
-                yield return Image[row, x];
-            }
+            return Enumerable.Range(0, Width)
+                .Select(column => Image[row, column]);
         }
 
         public IEnumerable<bool> ReadColumn(int column)
         {
-            for (var i = 0; i < Height; i++)
-            {
-                yield return Image[i,column];
-            }
+            return Enumerable.Range(0, Height)
+                .Select(row => Image[row, column]);
         }
 
         public string ToString(IEnumerable<bool> data)
@@ -267,7 +239,7 @@ namespace Solution
             return Image[y, x];
         }
 
-        public IEnumerable<bool> AllValues
+        public IEnumerable<(int x, int y)> AllCells
         {
             get 
             {
@@ -275,11 +247,13 @@ namespace Solution
                 {
                     for (var y = 0; y < Size; y++)
                     {
-                        yield return Get(x, y);
+                        yield return (x, y);
                     }
                 }
             }
         }
+
+        public IEnumerable<bool> AllValues => AllCells.Select(cell => Get(cell.x, cell.y));
 
         public int Width => Image.GetLength(1);
         public int Height => Image.GetLength(0);

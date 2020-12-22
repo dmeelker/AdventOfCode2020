@@ -111,6 +111,7 @@ namespace Solution
 
         public static bool IsMonster(Grid grid, int x, int y)
         {
+            var p = GetMonsterPoints(x, y).Where(location => grid.Contains(location.x, location.y) && grid.Get(location.x, location.y)).ToArray();
             return GetMonsterPoints(x, y).All(location => grid.Contains(location.x, location.y) && grid.Get(location.x, location.y));
         }
 
@@ -146,10 +147,31 @@ namespace Solution
 
         public static Grid FieldToGrid(TilePermutation[,] field)
         {
+            var gridSize = field[0, 0].Grid.Size;
+            var resultGridSize = field.GetLength(0) * (gridSize - 2);
+            var gridData = new bool[resultGridSize, resultGridSize];
+
+            foreach(var value in GetFieldValuesWithoutBorders(field).Select((value, index) => (value, index)))
+            {
+                var (x,y) = Get2dCoordinatesFromIndex(value.index, resultGridSize);
+                gridData[x, y] = value.value;
+            }
+
+            return new Grid(gridData);
+        }
+
+        public static (int x, int y) Get2dCoordinatesFromIndex(int index, int gridSize)
+        {
+            return (
+                index - index / gridSize * gridSize, 
+                index / gridSize
+            );
+        }
+
+        public static IEnumerable<bool> GetFieldValuesWithoutBorders(TilePermutation[,] field)
+        {
             var fieldSize = field.GetLength(0);
             var gridSize = field[0, 0].Grid.Size;
-            var result = new bool[fieldSize * (gridSize - 2), fieldSize * (gridSize - 2)];
-            int writeX = 0, writeY = 0;
 
             for(var fieldY=0;fieldY< fieldSize; fieldY++)
             {
@@ -161,17 +183,11 @@ namespace Solution
 
                         for (var x = 1; x < gridSize - 1; x++)
                         {
-                            result[writeX, writeY] = grid.Grid.Get(x,y);
-                            writeX++;
+                            yield return grid.Grid.Get(x, y);
                         }
                     }
-
-                    writeY++;
-                    writeX = 0;
                 }
             }
-
-            return new Grid(result);
         }
     }
 
