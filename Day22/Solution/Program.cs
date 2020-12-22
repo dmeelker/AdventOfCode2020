@@ -45,28 +45,15 @@ namespace Solution
             {
                 var state = HashState(stacks);
                 if (previousStates.Contains(state))
-                {
-                    // Player 1 wins
-                    return (0, stacks[0].ToArray());
-                }
+                    return (0, stacks[0].ToArray()); // Player 1 wins
                 else
-                {
                     previousStates.Add(state);
-                }
 
                 var drawnCards = stacks.Select(s => s.Dequeue()).ToArray();
-                int winner = -1;
+                int winner = IndexOfMax(drawnCards[0], drawnCards[1]);
 
-                if (stacks.Select((s,i) => (stack: s,index: i))
-                    .All(p => p.stack.Count >= drawnCards[p.index]))
-                {
-                    // Sub game!
-                    winner = PlayGame(stacks.Select((s, i) => s.Take(drawnCards[i]).ToArray()).ToArray()).winner;
-                }
-                else
-                {
-                    winner = IndexOfMax(drawnCards[0], drawnCards[1]);
-                }
+                if (ElementsEqualOrLarger(stacks.Select(s => s.Count).ToArray(), drawnCards))
+                    winner = PlayGame(stacks.Select((s, i) => s.Take(drawnCards[i]).ToArray()).ToArray()).winner; // Sub game!
 
                 stacks[winner].Enqueue(drawnCards[winner]);
                 stacks[winner].Enqueue(drawnCards[1 - winner]);
@@ -92,6 +79,12 @@ namespace Solution
                 .OrderByDescending(p => p.value)
                 .First()
                 .index;
+        }
+
+        public static bool ElementsEqualOrLarger(int[] a1, int[] a2)
+        {
+            return a1.Select((v, i) => (value: v, index: i))
+                .All(p => p.value >= a2[p.index]);
         }
     } 
 }
