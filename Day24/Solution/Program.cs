@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 
@@ -17,7 +16,7 @@ namespace Solution
         public static readonly Point SouthWest = new Point(-1, 1);
         public static readonly Point SouthEast = new Point(0, 1);
 
-        public static readonly Point[] AllDirections = new[] { NorthWest, NorthEast, West, East, SouthWest, SouthEast };
+        public static readonly Point[] All = new[] { NorthWest, NorthEast, West, East, SouthWest, SouthEast };
     }
 
     public class Program
@@ -33,106 +32,44 @@ namespace Solution
 
         public static HashSet<Point> Part1(Point[][] input)
         {
-            var tiles = new HashSet<Point>();
+            return input.Select(path => path.Aggregate((p1, p2) => p1.Add(p2)))
+                .GroupBy(point => point)
+                .Where(g => g.Count() % 2 == 1)
+                .Select(g => g.Key)
+                .ToHashSet();
+        }
 
-            foreach (var path in input)
+        public static HashSet<Point> Part2(HashSet<Point> blackTiles)
+        {
+            foreach (var step in Enumerable.Range(0, 100))
             {
-                var location = new Point(0, 0);
-
-                foreach (var step in path)
-                    location = location.Add(step);
-
-                if(tiles.Contains(location))
-                    tiles.Remove(location);
-                else
-                    tiles.Add(location);
+                blackTiles = Enumerable.Concat(
+                    blackTiles.Where(tile => InRange(CountAdjacentBlackTiles(tile, blackTiles), 1, 2)), // Black tiles with 1 or 2 black neighbours
+                    GetWhiteTiles(blackTiles).Where(tile => CountAdjacentBlackTiles(tile, blackTiles) == 2) // White tiles with 2 black neighbours
+                ).ToHashSet();
             }
 
-            return tiles;
+            return blackTiles;
         }
 
-        public static HashSet<Point> Part2(HashSet<Point> initialState)
+        public static bool InRange(int value, int from, int to)
         {
-            var state = initialState;
-
-            for (var i=0;i<100;i++)
-                state = Simulate(state);
-
-            return state;
+            return value >= from && value <= to;
         }
 
-        public static HashSet<Point> Simulate(HashSet<Point> state)
+        public static int CountAdjacentBlackTiles(Point point, HashSet<Point> blackTiles)
         {
-            var newState = state.ToHashSet();
-
-            state.Select(tile => (point: tile, count: CountAdjacentBlackTiles(tile, state)))
-                .Where(tile => tile.count == 0 | tile.count > 2)
-                .ToList()
-                .ForEach(tile => newState.Remove(tile.point));
-
-            GetWhiteTiles(state)
-                .Where(tile => CountAdjacentBlackTiles(tile, state) == 2)
-                .ToList()
-                .ForEach(tile => newState.Add(tile));
-
-            return newState;
+            return GetAdjacentCells(point).Count(blackTiles.Contains);
         }
 
-        public static int CountAdjacentBlackTiles(Point point, HashSet<Point> floor)
+        public static IEnumerable<Point> GetWhiteTiles(HashSet<Point> blackTiles)
         {
-            return GetAdjacentCells(point).Where(p => floor.Contains(p)).Count();
-        }
-
-        public static IEnumerable<Point> GetWhiteTiles(HashSet<Point> floor)
-        {
-            return floor.SelectMany(GetAdjacentCells).Distinct().Where(p => !floor.Contains(p));
+            return blackTiles.SelectMany(GetAdjacentCells).Distinct().Where(p => !blackTiles.Contains(p));
         }
 
         public static IEnumerable<Point> GetAdjacentCells(Point p)
         {
-            return Directions.AllDirections.Select(d => p.Add(d));
-        }
-    }
-
-    public class Point : IEquatable<Point>
-    {
-        public int X { get; }
-        public int Y { get; }
-
-        public Point(int x, int y)
-        {
-            X = x;
-            Y = y;
-        }
-
-        public Point Add(Point p)
-        {
-            return new Point(X + p.X, Y + p.Y);
-        }
-
-        public override bool Equals(object obj)
-        {
-            if(obj is Point)
-            {
-                var p = (Point)obj;
-                return X == p.X && Y == p.Y;
-            }
-            return false;
-        }
-
-        public override int GetHashCode()
-        {
-            return (Y << 16) ^ X;
-        }
-
-        public bool Equals([AllowNull] Point other)
-        {
-            return other is Point && Equals((Object)other);
-        }
-
-        public override string ToString()
-        {
-            return $"{X}, {Y}";
+            return Directions.All.Select(d => p.Add(d));
         }
     }
 }

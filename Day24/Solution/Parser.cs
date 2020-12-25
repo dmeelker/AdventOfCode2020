@@ -18,7 +18,7 @@ namespace Solution
         {
             var i = 0;
 
-            while(i<line.Length)
+            while (i < line.Length)
             {
                 var instruction = Regex.Match(line.Substring(i, i < line.Length - 1 ? 2 : 1), "^e|w|se|sw|ne|nw$", RegexOptions.Singleline).Groups[0].Value;
 
